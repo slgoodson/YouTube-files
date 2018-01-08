@@ -5,14 +5,14 @@ cd /home/pi
 cd HAP-NodeJS/
 sudo mkdir python
 cd python/
-sudo wget https://goo.gl/Tcdppb
-sudo mv Tcdppb gate.py
+sudo wget https://goo.gl/5q5ZEX
+sudo mv 5q5ZEX gate.py
 cd ..
 sudo npm install node-cmd
 cd accessories/
 sudo rm -rf SecurityGateOpener_accessory.js
-sudo wget https://goo.gl/walILo
-sudo mv walILo SecurityGateOpener_accessory.js
+sudo wget https://goo.gl/LVWkRf
+sudo mv LVWkRf SecurityGateOpener_accessory.js
 clear
 echo "Done with Installation :)"
 
