@@ -1,67 +1,84 @@
-//START SETUP
-var gateName = 'Security Gate';
-var uuidTag = 'gate';
-//END SETUP
-
 var Accessory = require('../').Accessory;
 var Service = require('../').Service;
 var Characteristic = require('../').Characteristic;
 var uuid = require('../').uuid;
 var cmd=require('node-cmd');
 
-var SECURITY_GATE = {
-  open: function() {
-    console.log("Opening the Gate!");
+// here's a fake hardware device that we'll expose to HomeKit
+var FAKE_LOCK = {
+  locked: true,
+  lock: function() { 
+    console.log("Locking the gate!");
+    FAKE_LOCK.locked = true;
+  },
+  unlock: function() { 
+    console.log("Unlocking the gate!");
     cmd.run('sudo python /home/pi/HAP-NodeJS/python/gate.py');
+    FAKE_LOCK.locked = false;
   },
   identify: function() {
-    console.log("Identify the Gate");
+    console.log("Identify the gate!");
   }
-};
+}
 
-var gateUUID = uuid.generate('hap-nodejs:accessories:'+uuidTag);
-var gate = exports.accessory = new Accessory(gateName, gateUUID);
+// Generate a consistent UUID for our Lock Accessory that will remain the same even when
+// restarting our server. We use the `uuid.generate` helper function to create a deterministic
+// UUID based on an arbitrary "namespace" and the word "lock".
+var lockUUID = uuid.generate('hap-nodejs:accessories:lock');
+
+// This is the Accessory that we'll return to HAP-NodeJS that represents our fake lock.
+var lock = exports.accessory = new Accessory('Lock', lockUUID);
 
 // Add properties for publishing (in case we're using Core.js and not BridgedCore.js)
-gate.username = "C1:5D:3F:EE:5E:FA"; //edit this if you use Core.js
-gate.pincode = "031-45-154";
+lock.username = "C1:5D:3A:EE:5E:FA";
+lock.pincode = "031-45-154";
 
-gate
+// set some basic properties (these values are arbitrary and setting them is optional)
+lock
   .getService(Service.AccessoryInformation)
-  .setCharacteristic(Characteristic.Manufacturer, "Gatemaster")
+  .setCharacteristic(Characteristic.Manufacturer, "Oltica")
   .setCharacteristic(Characteristic.Model, "Rev-1")
-  .setCharacteristic(Characteristic.SerialNumber, "TW000165");
+  .setCharacteristic(Characteristic.SerialNumber, "A1S2NASF88EW");
 
-gate.on('identify', function(paired, callback) {
-  SECURITY_GATE.identify();
-  callback();
+// listen for the "identify" event for this Accessory
+lock.on('identify', function(paired, callback) {
+  FAKE_LOCK.identify();
+  callback(); // success
 });
 
-gate
-  .addService(Service.SecurityGateOpener, "Security Gate")
-  .setCharacteristic(Characteristic.TargetDoorState, Characteristic.TargetDoorState.CLOSED) // force initial state to CLOSED
-  .getCharacteristic(Characteristic.TargetDoorState)
+// Add the actual Door Lock Service and listen for change events from iOS.
+// We can see the complete list of Services and Characteristics in `lib/gen/HomeKitTypes.js`
+lock
+  .addService(Service.LockMechanism, "Security Gate") // services exposed to the user should have "names" like "Fake Light" for us
+  .getCharacteristic(Characteristic.LockTargetState)
   .on('set', function(value, callback) {
+    
+    FAKE_LOCK.unlock();
+      callback(); // Our fake Lock is synchronous - this value has been successfully set
+      
+      // now we want to set our lock's "actual state" to be unsecured so it shows as unlocked in iOS apps
+      lock
+        .getService(Service.LockMechanism)
+        .setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
 
-    if (value == Characteristic.TargetDoorState.OPEN) {
-      SECURITY_GATE.open();
-      callback();
-    }
+      lock
+        .getService(Service.LockMechanism)
+        .setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.SECURED);
   });
 
-gate
-  .getService(Service.SecurityGateOpener)
-  .getCharacteristic(Characteristic.CurrentDoorState)
+// We want to intercept requests for our current state so we can query the hardware itself instead of
+// allowing HAP-NodeJS to return the cached Characteristic.value.
+lock
+  .getService(Service.LockMechanism)
+  .getCharacteristic(Characteristic.LockCurrentState)
   .on('get', function(callback) {
-
-    var err = null;
-
-    if (SECURITY_GATE.opened) {
-      console.log("Query: Is Gate Open? Yes.");
-      callback(err, Characteristic.CurrentDoorState.OPEN);
-    }
-    else {
-      console.log("Query: Is Gate Open? No.");
-      callback(err, Characteristic.CurrentDoorState.CLOSED);
-    }
+    
+    // this event is emitted when you ask Siri directly whether your lock is locked or not. you might query
+    // the lock hardware itself to find this out, then call the callback. But if you take longer than a
+    // few seconds to respond, Siri will give up.
+    
+    var err = null; // in case there were any problems
+    
+    console.log("Are we locked? Yes.");
+      callback(err, Characteristic.LockCurrentState.SECURED);
   });
