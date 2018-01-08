@@ -43,19 +43,9 @@ gate
   .getCharacteristic(Characteristic.TargetDoorState)
   .on('set', function(value, callback) {
 
-    if (value == Characteristic.TargetDoorState.CLOSED) {
-      SECURITY_GATE.close();
-      callback();
-      garage
-        .getService(Service.SecurityGateOpener)
-        .setCharacteristic(Characteristic.CurrentDoorState, Characteristic.CurrentDoorState.CLOSED);
-    }
-    else if (value == Characteristic.TargetDoorState.OPEN) {
+    if (value == Characteristic.TargetDoorState.OPEN) {
       SECURITY_GATE.open();
       callback();
-      garage
-        .getService(Service.SecurityGateOpener)
-        .setCharacteristic(Characteristic.CurrentDoorState, Characteristic.CurrentDoorState.OPEN);
     }
   });
 
