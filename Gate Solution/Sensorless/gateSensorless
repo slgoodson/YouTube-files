@@ -11,8 +11,8 @@ cd ..
 sudo npm install node-cmd
 cd accessories/
 sudo rm -rf SecurityGateOpener_accessory.js
-sudo wget https://goo.gl/LVWkRf
-sudo mv LVWkRf SecurityGateOpener_accessory.js
+sudo wget https://goo.gl/wnnyis
+sudo mv wnnyis SecurityGateOpener_accessory.js
 clear
 echo "Done with Installation :)"
 
