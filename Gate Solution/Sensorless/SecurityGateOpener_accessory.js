@@ -2,35 +2,34 @@ var Accessory = require('../').Accessory;
 var Service = require('../').Service;
 var Characteristic = require('../').Characteristic;
 var uuid = require('../').uuid;
-var cmd=require('node-cmd');
+
+// Generate a consistent UUID for our Lock Accessory that will remain the same even when
+// restarting our server. We use the `uuid.generate` helper function to create a deterministic
+// UUID based on an arbitrary "namespace" and the word "lock".
+var lockUUID = uuid.generate('hap-nodejs:accessories:lock2');
+
+// This is the Accessory that we'll return to HAP-NodeJS that represents our fake lock.
+var lock = exports.accessory = new Accessory('Lock', lockUUID);
+
 
 // here's a fake hardware device that we'll expose to HomeKit
 var FAKE_LOCK = {
   locked: true,
   lock: function() { 
-    console.log("Locking the gate!");
+    console.log("Locking the lock!");
     FAKE_LOCK.locked = true;
   },
   unlock: function() { 
-    console.log("Unlocking the gate!");
-    cmd.run('sudo python /home/pi/HAP-NodeJS/python/gate.py');
+    console.log("Unlocking the lock!");
     FAKE_LOCK.locked = false;
   },
   identify: function() {
-    console.log("Identify the gate!");
+    console.log("Identify the lock!");
   }
 }
 
-// Generate a consistent UUID for our Lock Accessory that will remain the same even when
-// restarting our server. We use the `uuid.generate` helper function to create a deterministic
-// UUID based on an arbitrary "namespace" and the word "lock".
-var lockUUID = uuid.generate('hap-nodejs:accessories:lock');
-
-// This is the Accessory that we'll return to HAP-NodeJS that represents our fake lock.
-var lock = exports.accessory = new Accessory('Lock', lockUUID);
-
 // Add properties for publishing (in case we're using Core.js and not BridgedCore.js)
-lock.username = "C1:5D:3A:EE:5E:FA";
+lock.username = "C1:5D:3A:EE:5E:FB";
 lock.pincode = "031-45-154";
 
 // set some basic properties (these values are arbitrary and setting them is optional)
@@ -49,21 +48,45 @@ lock.on('identify', function(paired, callback) {
 // Add the actual Door Lock Service and listen for change events from iOS.
 // We can see the complete list of Services and Characteristics in `lib/gen/HomeKitTypes.js`
 lock
-  .addService(Service.LockMechanism, "Security Gate") // services exposed to the user should have "names" like "Fake Light" for us
+  .addService(Service.LockMechanism, "Front Gate") // services exposed to the user should have "names" like "Fake Light" for us
+  .setCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.SECURED) 
   .getCharacteristic(Characteristic.LockTargetState)
   .on('set', function(value, callback) {
     
-    FAKE_LOCK.unlock();
-      callback(); // Our fake Lock is synchronous - this value has been successfully set
+    if (value == Characteristic.LockTargetState.UNSECURED) {
+      FAKE_LOCK.unlock();
+      
       
       // now we want to set our lock's "actual state" to be unsecured so it shows as unlocked in iOS apps
       lock
         .getService(Service.LockMechanism)
         .setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
 
+
+
+     setTimeout(function(){
+       FAKE_LOCK.lock();
+lock
+        .getService(Service.LockMechanism)
+        .setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.SECURED);
+
+lock
+        .getService(Service.LockMechanism)
+        .setCharacteristic(Characteristic.LockTargetState, Characteristic.LockTargetState.SECURED);
+
+
+     },2000);
+    callback();
+      
+    }
+    else if (value == Characteristic.LockTargetState.SECURED) {
+      FAKE_LOCK.lock();
+      callback();      
+      // now we want to set our lock's "actual state" to be locked so it shows as open in iOS apps
       lock
         .getService(Service.LockMechanism)
         .setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.SECURED);
+    }
   });
 
 // We want to intercept requests for our current state so we can query the hardware itself instead of
@@ -79,6 +102,12 @@ lock
     
     var err = null; // in case there were any problems
     
-    console.log("Are we locked? Yes.");
+    if (FAKE_LOCK.locked) {
+      console.log("Are we locked? Yes.");
       callback(err, Characteristic.LockCurrentState.SECURED);
+    }
+    else {
+      console.log("Are we locked? No.");
+      callback(err, Characteristic.LockCurrentState.UNSECURED);
+    }
   });
